@@ -1,0 +1,36 @@
+Name: solutionid
+SchemaVersion: "1.0"
+Triggers:
+  - Type: PULLREQUEST
+    Branches:
+      - main
+    Events:
+      - OPEN
+      - REVISION
+  - Type: PUSH
+    Branches:
+      - main
+  - Type: SCHEDULE
+    Expression: 0 2 * * ? *
+    Branches:
+      - main
+Compute:
+  Type: EC2
+  Fleet: Linux.x86-64.Large
+Actions:
+  build:
+    Identifier: aws/build@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: false
+        ReportNamePrefix: rpt
+    Configuration:
+      Steps:
+        - Run: chmod u+x ./.codecatalyst/*.sh
+        - Run: ./.codecatalyst/solutionid_validator.sh
+      Container:
+        Registry: CODECATALYST
+        Image: CodeCatalystLinux_x86_64:2024_03

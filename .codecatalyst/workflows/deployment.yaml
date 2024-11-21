@@ -1,0 +1,90 @@
+Name: deployment
+SchemaVersion: "1.0"
+Triggers:
+  - Type: PUSH
+    Branches:
+      - main
+  - Type: SCHEDULE
+    Expression: 0 2 * * ? *
+    Branches:
+      - main
+Compute:
+  Type: EC2
+  Fleet: Linux.x86-64.Large
+Actions:
+  init:
+    Identifier: aws/build@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+    Configuration:
+      Steps:
+        - Run: chmod u+x ./.codecatalyst/*.sh
+        - Run: ./.codecatalyst/init-runner.sh "${Secrets.USER_NAME}"
+            "${Secrets.USER_EMAIL}" "${Secrets.USER_ID}" "${Secrets.PAT}"
+            "${Secrets.SKIP_FOR_CUSTOMER}"
+      Container:
+        Registry: CODECATALYST
+        Image: CodeCatalystLinux_x86_64:2024_03
+    Environment:
+      Name: prod_environment
+      Connections:
+        - Name: "250252210437"
+          Role: CodeCatalystWorkflowDevelopmentRole-IDP_klgrady
+  build:
+    DependsOn:
+      - init
+    Identifier: aws/build@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+      Variables:
+        - Name: region
+          Value: us-west-2
+        - Name: bucketPrefix
+          Value: guidance-idp-10-klgrady
+        - Name: guidanceVersion
+          Value: v2.0.0
+        - Name: DomainName
+          Value: MySagemakerDomain
+        - Name: UserProfileName
+          Value: SageMakerUser
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: false
+        ReportNamePrefix: rpt
+    Configuration:
+      Steps:
+        - Run: export REGION=$region
+        - Run: export BUCKET_PREFIX=$bucketPrefix
+        - Run: export BUCKET_NAME=$BUCKET_PREFIX-$REGION
+        - Run: export GUIDANCE_NAME=guidance-for-intelligent-document-processing-on-aws
+        - Run: export VERSION=$guidanceVersion
+        - Run: chmod u+x ./.codecatalyst/*.sh
+        - Run: echo ./.codecatalyst/create-bucket.sh $BUCKET_NAME $REGION
+        - Run: ./.codecatalyst/create-bucket.sh $BUCKET_NAME $REGION
+        - Run: aws s3 cp ./dist/idp-deploy.yaml
+            s3://$BUCKET_NAME/$GUIDANCE_NAME/$VERSION/idp-deploy.yaml
+      Container:
+        Registry: CODECATALYST
+        Image: CodeCatalystLinux_x86_64:2024_03
+    Environment:
+      Name: prod_environment
+      Connections:
+        - Name: "250252210437"
+          Role: CodeCatalystWorkflowDevelopmentRole-IDP_klgrady
+  deploy:
+    DependsOn:
+      - build
+    Identifier: aws/cfn-deploy@v1
+    Configuration:
+      parameter-overrides: DomainName=MySagemakerDomain,UserProfileName=SageMakerUser
+      capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+      template: https://guidance-idp-10-klgrady-us-west-2.s3.us-west-2.amazonaws.com/guidance-for-intelligent-document-processing-on-aws/v2.0.0/idp-deploy.yaml
+      region: us-west-2
+      name: guidance-for-intelligent-document-processing-on-aws
+    Environment:
+      Name: prod_environment
+      Connections:
+        - Name: "250252210437"
+          Role: CodeCatalystWorkflowDevelopmentRole-IDP_klgrady
