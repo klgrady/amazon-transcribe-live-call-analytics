@@ -40,15 +40,10 @@ Actions:
         - WorkflowSource
       Variables:
         - Name: region
-          Value: us-west-2
         - Name: bucketPrefix
-          Value: guidance-idp-10-klgrady
         - Name: guidanceVersion
-          Value: v2.0.0
         - Name: DomainName
-          Value: MySagemakerDomain
         - Name: UserProfileName
-          Value: SageMakerUser
     Outputs:
       AutoDiscoverReports:
         Enabled: false
